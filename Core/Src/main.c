@@ -1,63 +1,46 @@
 /* USER CODE BEGIN Header */
-/* By: Simonas Riauka and Aurimas Junevičius 2025-06 */
-/**
- ******************************************************************************
- * @file           : main.c
- * @brief          : Main program body
- ******************************************************************************
- * @attention
- *
- * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
- * All rights reserved.</center></h2>
- *
- * This software component is licensed by ST under BSD 3-Clause license,
- * the "License"; You may not use this file except in compliance with the
- * License. You may obtain a copy of the License at:
- *                        opensource.org/licenses/BSD-3-Clause
- *
- ******************************************************************************
- */
-
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include <stdio.h>
+#include <stdbool.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdbool.h>
 #include "stts22h.h"
 #include "gnss_driver.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define GPS_MESSAGE_BUFFER_MAX_LENGTH 200
-#define UART_TIMEOUT 10
-#define MESSAGE_BUFFER_MAX_LENGTH 200
+#define	MESSAGE_BUFFER_MAX_LENGTH	200
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
+
+TIM_HandleTypeDef htim11;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart6;
 DMA_HandleTypeDef hdma_usart1_rx;
 
 /* USER CODE BEGIN PV */
-
+static uint8_t whoami;
+static uint8_t temp[2];
+static uint8_t message_buffer[MESSAGE_BUFFER_MAX_LENGTH];
+static uint8_t gps_message_buffer[MESSAGE_BUFFER_MAX_LENGTH];
+static uint8_t message_buffer_length = 0;
+static bool tim11_flag = false, pps_flag = false;
+static float temperature;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -67,20 +50,12 @@ static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART6_UART_Init(void);
+static void MX_TIM11_Init(void);
 /* USER CODE BEGIN PFP */
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static bool PPS_Flag = false;
-static uint8_t gps_message_buffer[GPS_MESSAGE_BUFFER_MAX_LENGTH] = {0};
-static uint8_t message_buffer[MESSAGE_BUFFER_MAX_LENGTH] = {0};
-static uint8_t whoami;
-static int message_buffer_length = 0;
-static float temperature = 0;
 /* USER CODE END 0 */
 
 /**
@@ -91,7 +66,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -100,14 +74,12 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -116,35 +88,41 @@ int main(void)
   MX_I2C1_Init();
   MX_USART1_UART_Init();
   MX_USART6_UART_Init();
+  MX_TIM11_Init();
   /* USER CODE BEGIN 2 */
   STTS22H_WhoAmI(&whoami);
-  message_buffer_length = snprintf((char *)message_buffer, MESSAGE_BUFFER_MAX_LENGTH, "I am - 0x%02x\r\n", whoami);
-  HAL_UART_Transmit(&huart6, message_buffer, message_buffer_length, UART_TIMEOUT);
-	/* Get sht40ad1b relative humidity and temperature data uncomment for IKS4A1 */
-  /* Turn on GNSS module, common for both versions of shields */
+  message_buffer_length = snprintf((char *)message_buffer, MESSAGE_BUFFER_MAX_LENGTH, "I am - 0x%02X\r\n", whoami);
+  HAL_UART_Transmit(&huart6, message_buffer, message_buffer_length, 10);
+
+  STTS22H_Temp_ODR_Enable();
+
   gnss_driver_init();
 
+  HAL_TIM_Base_Start_IT(&htim11);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-	while (1) {
+  while(1){
+
+	  if(tim11_flag){
+		  STTS22H_Temp_Get(temp);
+		  temperature = (int16_t)((temp[1] << 8) | temp[0]) * 0.01f;
+
+		  message_buffer_length = snprintf((char *)message_buffer, MESSAGE_BUFFER_MAX_LENGTH, "Temperature is %.2f C\r\n", temperature);
+		  HAL_UART_Transmit(&huart6, message_buffer, message_buffer_length, 10);
+
+		  tim11_flag = false;
+	  }
+
+	  if(pps_flag){
+		  pps_flag = false;
+	  }
+
+  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	    temperature = STTS22H_GetTemp();
-
-	    message_buffer_length = snprintf((char *)message_buffer, MESSAGE_BUFFER_MAX_LENGTH, "Temperature is %.2f\r\n", temperature);
-	    HAL_UART_Transmit(&huart6, message_buffer, message_buffer_length, UART_TIMEOUT);
-
-		/*GPS data reading and output on each PPS interrupt */
-		if(PPS_Flag == true){
-			/* GPS message found in array: gps_message_buffer */
-			/* Parse NMEA message here */
-			/* Do periodic sensor reading here */
-			PPS_Flag = false;
-		}
-	}
   /* USER CODE END 3 */
 }
 
@@ -203,11 +181,9 @@ static void MX_I2C1_Init(void)
 {
 
   /* USER CODE BEGIN I2C1_Init 0 */
-
   /* USER CODE END I2C1_Init 0 */
 
   /* USER CODE BEGIN I2C1_Init 1 */
-
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
   hi2c1.Init.ClockSpeed = 100000;
@@ -223,8 +199,38 @@ static void MX_I2C1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN I2C1_Init 2 */
-
   /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
+  * @brief TIM11 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM11_Init(void)
+{
+
+  /* USER CODE BEGIN TIM11_Init 0 */
+
+  /* USER CODE END TIM11_Init 0 */
+
+  /* USER CODE BEGIN TIM11_Init 1 */
+
+  /* USER CODE END TIM11_Init 1 */
+  htim11.Instance = TIM11;
+  htim11.Init.Prescaler = 335;
+  htim11.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim11.Init.Period = 62499;
+  htim11.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim11.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim11) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM11_Init 2 */
+
+  /* USER CODE END TIM11_Init 2 */
 
 }
 
@@ -237,11 +243,9 @@ static void MX_USART1_UART_Init(void)
 {
 
   /* USER CODE BEGIN USART1_Init 0 */
-
   /* USER CODE END USART1_Init 0 */
 
   /* USER CODE BEGIN USART1_Init 1 */
-
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
   huart1.Init.BaudRate = 230400;
@@ -256,7 +260,6 @@ static void MX_USART1_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USART1_Init 2 */
-
   /* USER CODE END USART1_Init 2 */
 
 }
@@ -270,11 +273,9 @@ static void MX_USART6_UART_Init(void)
 {
 
   /* USER CODE BEGIN USART6_Init 0 */
-
   /* USER CODE END USART6_Init 0 */
 
   /* USER CODE BEGIN USART6_Init 1 */
-
   /* USER CODE END USART6_Init 1 */
   huart6.Instance = USART6;
   huart6.Init.BaudRate = 921600;
@@ -289,7 +290,6 @@ static void MX_USART6_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USART6_Init 2 */
-
   /* USER CODE END USART6_Init 2 */
 
 }
@@ -319,7 +319,6 @@ static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
-
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
@@ -347,20 +346,27 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
-
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
-/* External GPIO interrupt handler */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM11)
+  {
+	  tim11_flag = true;
+  }
+}
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	/* PPS interrupt handler */
 	if(GPIO_Pin == PPS_INT_Pin){
 		/* PPS interrupt found, receive DMA data */
-		PPS_Flag = true;
-		HAL_UART_Receive_DMA(&huart1, gps_message_buffer, GPS_MESSAGE_BUFFER_MAX_LENGTH);
+		pps_flag = true;
+		HAL_UART_Receive_DMA(&huart1, gps_message_buffer, MESSAGE_BUFFER_MAX_LENGTH);
 	}
 }
+
 /* USER CODE END 4 */
 
 /**
@@ -370,12 +376,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-	/* User can add his own implementation to report the HAL error return state */
-	while(1){
-
-	}
   /* USER CODE END Error_Handler_Debug */
 }
+
+
 #ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
@@ -387,8 +391,6 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

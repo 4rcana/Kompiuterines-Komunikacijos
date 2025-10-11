@@ -60,8 +60,8 @@ all: main-build
 main-build: F401_GPS_Shield_NOT_LEGACY.elf secondary-outputs
 
 # Tool invocations
-F401_GPS_Shield_NOT_LEGACY.elf F401_GPS_Shield_NOT_LEGACY.map: $(OBJS) $(USER_OBJS) D:\ST\STM32CubeIDE\workspace_1.18.1\F401_GPS_Shield_NOT_LEGACY\STM32F401RETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "F401_GPS_Shield_NOT_LEGACY.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"D:\ST\STM32CubeIDE\workspace_1.18.1\F401_GPS_Shield_NOT_LEGACY\STM32F401RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="F401_GPS_Shield_NOT_LEGACY.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
+F401_GPS_Shield_NOT_LEGACY.elf F401_GPS_Shield_NOT_LEGACY.map: $(OBJS) $(USER_OBJS) /home/4rcana/Kompiuterines-Komunikacijos/STM32F401RETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "F401_GPS_Shield_NOT_LEGACY.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"/home/4rcana/Kompiuterines-Komunikacijos/STM32F401RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="F401_GPS_Shield_NOT_LEGACY.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

@@ -1,2 +1,3 @@
 ../Core/Src/stts22h.c:4:6:STTS22H_WhoAmI	32	static
-../Core/Src/stts22h.c:8:7:STTS22H_GetTemp	40	static
+../Core/Src/stts22h.c:8:6:STTS22H_Temp_ODR_Enable	40	static
+../Core/Src/stts22h.c:18:6:STTS22H_Temp_Get	32	static
