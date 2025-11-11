@@ -18,6 +18,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define	MESSAGE_BUFFER_MAX_LENGTH	200
+#define UART_TIMEOUT			10
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -38,7 +39,10 @@ static uint8_t whoami;
 static uint8_t temp[2];
 static uint8_t message_buffer[MESSAGE_BUFFER_MAX_LENGTH];
 static uint8_t gps_message_buffer[MESSAGE_BUFFER_MAX_LENGTH];
+static uint8_t *gps_message_ptr;
+static uint8_t *message_ptr;
 static uint8_t message_buffer_length = 0;
+static uint8_t counter;
 static bool tim11_flag = false, pps_flag = false;
 static float temperature;
 /* USER CODE END PV */
@@ -92,7 +96,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   STTS22H_WhoAmI(&whoami);
   message_buffer_length = snprintf((char *)message_buffer, MESSAGE_BUFFER_MAX_LENGTH, "I am - 0x%02X\r\n", whoami);
-  HAL_UART_Transmit(&huart6, message_buffer, message_buffer_length, 10);
+  HAL_UART_Transmit(&huart6, message_buffer, message_buffer_length, UART_TIMEOUT);
 
   STTS22H_Temp_ODR_Enable();
 
@@ -109,13 +113,27 @@ int main(void)
 		  STTS22H_Temp_Get(temp);
 		  temperature = (int16_t)((temp[1] << 8) | temp[0]) * 0.01f;
 
-		  message_buffer_length = snprintf((char *)message_buffer, MESSAGE_BUFFER_MAX_LENGTH, "Temperature is %.2f C\r\n", temperature);
-		  HAL_UART_Transmit(&huart6, message_buffer, message_buffer_length, 10);
+		  //message_buffer_length = snprintf((char *)message_buffer, MESSAGE_BUFFER_MAX_LENGTH, "Temperature is %.2f C\r\n", temperature);
+		  //HAL_UART_Transmit(&huart6, message_buffer, message_buffer_length, UART_TIMEOUT);
 
 		  tim11_flag = false;
 	  }
 
 	  if(pps_flag){
+		  gps_message_ptr = gps_message_buffer + 6;
+		  message_ptr = message_buffer;
+		  counter = 0;
+
+		  while (counter != 7) {
+		      if (*gps_message_ptr == ',') {
+			  counter++;
+		      }
+		      *message_ptr++ = *gps_message_ptr++;
+		  }
+
+
+		  HAL_UART_Transmit(&huart6, message_buffer, MESSAGE_BUFFER_MAX_LENGTH, UART_TIMEOUT);
+
 		  pps_flag = false;
 	  }
 
@@ -142,7 +160,7 @@ void SystemClock_Config(void)
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
-  */
+90  */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
