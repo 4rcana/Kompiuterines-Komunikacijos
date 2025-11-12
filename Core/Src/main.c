@@ -39,10 +39,11 @@ static uint8_t whoami;
 static uint8_t temp[2];
 static uint8_t message_buffer[MESSAGE_BUFFER_MAX_LENGTH];
 static uint8_t gps_message_buffer[MESSAGE_BUFFER_MAX_LENGTH];
-static uint8_t *gps_message_ptr;
+static uint8_t temperature_message_buffer[MESSAGE_BUFFER_MAX_LENGTH];
 static uint8_t *message_ptr;
+static uint8_t *gps_message_ptr;
+static uint8_t *temperature_message_ptr;
 static uint8_t message_buffer_length = 0;
-static uint8_t counter;
 static bool tim11_flag = false, pps_flag = false;
 static float temperature;
 /* USER CODE END PV */
@@ -113,24 +114,41 @@ int main(void)
 		  STTS22H_Temp_Get(temp);
 		  temperature = (int16_t)((temp[1] << 8) | temp[0]) * 0.01f;
 
-		  //message_buffer_length = snprintf((char *)message_buffer, MESSAGE_BUFFER_MAX_LENGTH, "Temperature is %.2f C\r\n", temperature);
-		  //HAL_UART_Transmit(&huart6, message_buffer, message_buffer_length, UART_TIMEOUT);
+		  snprintf((char *)temperature_message_buffer, MESSAGE_BUFFER_MAX_LENGTH, "%.2f\r\n", temperature);
+		  // In the fashion of saving memory a function for float to string conversion could be
+		  // written and concatenated to the main message in the same style GPS message is.
+		  temperature_message_ptr = temperature_message_buffer;
 
 		  tim11_flag = false;
 	  }
 
 	  if(pps_flag){
-		  gps_message_ptr = gps_message_buffer + 6;
-		  message_ptr = message_buffer;
-		  counter = 0;
+		  snprintf((char *)message_buffer, MESSAGE_BUFFER_MAX_LENGTH, "NM,");
+		  message_ptr = message_buffer + 4;	      // Skip first 3 bytes
 
-		  while (counter != 7) {
-		      if (*gps_message_ptr == ',') {
-			  counter++;
-		      }
+		  // GPPGA starts from 70th byte.
+		  gps_message_ptr = gps_message_buffer + 88;  // Beginning of coordinate 88th byte, data size 27 bytes
+		  for (int i = 0; i < 27; i++) {
 		      *message_ptr++ = *gps_message_ptr++;
 		  }
 
+		  gps_message_ptr = gps_message_buffer + 77;   // Beginning of time 77th byte, data size 11 bytes
+		  for (int i = 0; i < 11; i++) {
+		      *message_ptr++ = *gps_message_ptr++;
+		  }
+
+		  gps_message_ptr = gps_message_buffer + 117;  // Beginning of received satellites 117th byte, data size 3 bytes
+		  for (int i = 0; i < 3; i++) {
+		      *message_ptr++ = *gps_message_ptr++;
+		  }
+
+		  for (int i = 0; i < 5; i++) {
+		      *message_ptr++ = *temperature_message_ptr++;
+		  }
+
+		  *message_ptr++ = '\r';
+		  *message_ptr++ = '\n';
+		  *message_ptr   = '\0';
 
 		  HAL_UART_Transmit(&huart6, message_buffer, MESSAGE_BUFFER_MAX_LENGTH, UART_TIMEOUT);
 
