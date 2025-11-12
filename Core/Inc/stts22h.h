@@ -18,7 +18,4 @@ void	STTS22H_Temp_Get(uint8_t *pData);
 
 
 
-
-
-
 #endif /* INC_STTS22H_H_ */

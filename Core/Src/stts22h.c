@@ -18,5 +18,3 @@ void STTS22H_Temp_ODR_Enable(){
 void STTS22H_Temp_Get(uint8_t *pData){
   HAL_I2C_Mem_Read(&hi2c1, STTS22H_ADDRESS, STTS22H_DATA_REG, I2C_MEMADD_SIZE_8BIT, pData, 2, 100);
 }
-
-

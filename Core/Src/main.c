@@ -102,8 +102,6 @@ int main(void)
   STTS22H_Temp_ODR_Enable();
 
   gnss_driver_init();
-
-  HAL_TIM_Base_Start_IT(&htim11);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -119,24 +117,31 @@ int main(void)
 		  // written and concatenated to the main message in the same style GPS message is.
 		  temperature_message_ptr = temperature_message_buffer;
 
-		  message_ptr = message_buffer + 45;		// Temperature starts from 45th byte.
+		  message_ptr = message_buffer + 44;		// Temperature starts from 44th byte.
 
 		  for (int i = 0; i < 5; i++) {
-		      *message_ptr++ = *temperature_message_ptr++;
+		      *message_ptr++ = *temperature_message_ptr++;  // Data size 5 bytes
 		  }
 
 		  *message_ptr++ = '\r';
 		  *message_ptr++ = '\n';
 		  *message_ptr   = '\0';
 
-		  HAL_UART_Transmit(&huart6, message_buffer, MESSAGE_BUFFER_MAX_LENGTH, UART_TIMEOUT);
+		  message_ptr = message_buffer;
+		  message_buffer_length = 0;
+
+		  while (*message_ptr++ != '\0') {
+		      message_buffer_length++;
+		  }
+
+		  HAL_UART_Transmit(&huart6, message_buffer, message_buffer_length, UART_TIMEOUT);
 
 		  tim11_flag = false;
 	  }
 
 	  if(pps_flag){
 		  snprintf((char *)message_buffer, MESSAGE_BUFFER_MAX_LENGTH, "NM,");
-		  message_ptr = message_buffer + 4;	      // Skip first 3 bytes
+		  message_ptr = message_buffer + 3;	      // Skip first 3 bytes
 
 		  // GPPGA starts from 70th byte.
 		  gps_message_ptr = gps_message_buffer + 88;  // Beginning of coordinate 88th byte, data size 27 bytes
@@ -155,6 +160,10 @@ int main(void)
 		  }
 
 		  pps_flag = false;
+
+		  /* TIM11 Synchronization (enabling timer only after gps_message has been processed) checking
+		   * if State == HAL_TIM_STATE_READY isn't necessary, because that happens inside the function. 	*/
+		  HAL_TIM_Base_Start_IT(&htim11);
 	  }
 
   }
