@@ -119,6 +119,18 @@ int main(void)
 		  // written and concatenated to the main message in the same style GPS message is.
 		  temperature_message_ptr = temperature_message_buffer;
 
+		  message_ptr = message_buffer + 45;		// Temperature starts from 45th byte.
+
+		  for (int i = 0; i < 5; i++) {
+		      *message_ptr++ = *temperature_message_ptr++;
+		  }
+
+		  *message_ptr++ = '\r';
+		  *message_ptr++ = '\n';
+		  *message_ptr   = '\0';
+
+		  HAL_UART_Transmit(&huart6, message_buffer, MESSAGE_BUFFER_MAX_LENGTH, UART_TIMEOUT);
+
 		  tim11_flag = false;
 	  }
 
@@ -141,16 +153,6 @@ int main(void)
 		  for (int i = 0; i < 3; i++) {
 		      *message_ptr++ = *gps_message_ptr++;
 		  }
-
-		  for (int i = 0; i < 5; i++) {
-		      *message_ptr++ = *temperature_message_ptr++;
-		  }
-
-		  *message_ptr++ = '\r';
-		  *message_ptr++ = '\n';
-		  *message_ptr   = '\0';
-
-		  HAL_UART_Transmit(&huart6, message_buffer, MESSAGE_BUFFER_MAX_LENGTH, UART_TIMEOUT);
 
 		  pps_flag = false;
 	  }
